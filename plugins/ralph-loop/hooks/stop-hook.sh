@@ -156,7 +156,18 @@ TEMP_FILE="${RALPH_STATE_FILE}.tmp.$$"
 sed "s/^iteration: .*/iteration: $NEXT_ITERATION/" "$RALPH_STATE_FILE" > "$TEMP_FILE"
 mv "$TEMP_FILE" "$RALPH_STATE_FILE"
 
-# Build system message with iteration count and completion promise info
+# Append completion promise reminder to prompt (Claude only sees 'reason', not 'systemMessage')
+if [[ "$COMPLETION_PROMISE" != "null" ]] && [[ -n "$COMPLETION_PROMISE" ]]; then
+  PROMPT_TEXT="$PROMPT_TEXT
+
+---
+[Ralph Loop - Iteration $NEXT_ITERATION]
+When the task above is fully complete, output exactly: <promise>$COMPLETION_PROMISE</promise>
+Do NOT lie or output a false promise to escape the loop - only when \"$COMPLETION_PROMISE\" is genuinely true.
+---"
+fi
+
+# Build system message for user display
 if [[ "$COMPLETION_PROMISE" != "null" ]] && [[ -n "$COMPLETION_PROMISE" ]]; then
   SYSTEM_MSG="🔄 Ralph iteration $NEXT_ITERATION | To stop: output <promise>$COMPLETION_PROMISE</promise> (ONLY when statement is TRUE - do not lie to exit!)"
 else
@@ -165,6 +176,7 @@ fi
 
 # Output JSON to block the stop and feed prompt back
 # The "reason" field contains the prompt that will be sent back to Claude
+# Note: systemMessage is shown to user only, not Claude
 jq -n \
   --arg prompt "$PROMPT_TEXT" \
   --arg msg "$SYSTEM_MSG" \
