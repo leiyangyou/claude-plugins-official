@@ -130,6 +130,20 @@ fi
 # Create state file for stop hook (markdown with YAML frontmatter)
 mkdir -p .claude
 
+# Clean up orphaned state files older than 24 hours
+# These can accumulate if sessions terminate unexpectedly
+find .claude -name 'ralph-loop-*.local.md' -mtime +1 -delete 2>/dev/null || true
+
+# Use session ID from SessionStart hook (set via CLAUDE_ENV_FILE)
+# This prevents session contamination - each session has its own state file
+if [[ -z "${RALPH_SESSION_ID:-}" ]]; then
+  echo "❌ Error: RALPH_SESSION_ID not set" >&2
+  echo "   The SessionStart hook may not have run correctly." >&2
+  echo "   Try restarting Claude Code." >&2
+  exit 1
+fi
+LOOP_ID="$RALPH_SESSION_ID"
+
 # Quote completion promise for YAML if it contains special chars or is not null
 if [[ -n "$COMPLETION_PROMISE" ]] && [[ "$COMPLETION_PROMISE" != "null" ]]; then
   COMPLETION_PROMISE_YAML="\"$COMPLETION_PROMISE\""
@@ -137,7 +151,7 @@ else
   COMPLETION_PROMISE_YAML="null"
 fi
 
-cat > .claude/ralph-loop.local.md <<EOF
+cat > ".claude/ralph-loop-${LOOP_ID}.local.md" <<EOF
 ---
 active: true
 iteration: 1
@@ -161,7 +175,7 @@ The stop hook is now active. When you try to exit, the SAME PROMPT will be
 fed back to you. You'll see your previous work in files, creating a
 self-referential loop where you iteratively improve on the same task.
 
-To monitor: head -10 .claude/ralph-loop.local.md
+To monitor: head -10 .claude/ralph-loop-${LOOP_ID}.local.md
 
 ⚠️  WARNING: This loop cannot be stopped manually! It will run infinitely
     unless you set --max-iterations or --completion-promise.
